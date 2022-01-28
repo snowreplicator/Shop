@@ -1,22 +1,33 @@
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.HttpsPolicy;
-using Microsoft.AspNetCore.Http;
+using Microsoft.EntityFrameworkCore;
+//using Microsoft.AspNetCore.HttpsPolicy;
+//using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
+using Shop.Data;
+//using Microsoft.Extensions.Hosting;
+//using System;
+//using System.Collections.Generic;
+//using System.Linq;
+//using System.Threading.Tasks;
 
 using Shop.Data.interfaces;
 using Shop.Data.mocks;
+using Shop.Data.Repository;
 
 namespace Shop
 {
     public class Startup
     {
+        private IConfigurationRoot _confString;
+
+        public Startup(IHostingEnvironment hostEnv)
+        {
+            _confString = new ConfigurationBuilder().SetBasePath(hostEnv.ContentRootPath).AddJsonFile("dbsettings.json").Build();
+        }
+
+
         public Startup(IConfiguration configuration)
         {
             Configuration = configuration;
@@ -27,9 +38,19 @@ namespace Shop
         // This method gets called by the runtime. Use this method to add services to the container.
         public void ConfigureServices(IServiceCollection services)
         {
+            // подключение БД
+            services.AddDbContext<AppDBContent>(options => options.UseSqlServer(_confString.GetConnectionString("DefaultConnection")));
+
             //services.AddRazorPages(); 
-            services.AddTransient<IAllCars, MockCars>();
-            services.AddTransient<ICarsCategory, MockCategory>();
+            // ------------
+            // репозитарии из статических файлов
+            //services.AddTransient<IAllCars, MockCars>();
+            //services.AddTransient<ICarsCategory, MockCategory>();
+            // ------------
+            // репозитарии из бд
+            services.AddTransient<IAllCars, CarRepository>();
+            services.AddTransient<ICarsCategory, CategoryRepository>();
+            // ------------
             services.AddMvc();
             services.AddMvc(options => options.EnableEndpointRouting = false);
         }
@@ -42,6 +63,13 @@ namespace Shop
             app.UseStaticFiles();
             app.UseMvcWithDefaultRoute();
 
+            // при старте программы населяем бд
+            //DBObjects.Initial(app);
+            using (var scope = app.ApplicationServices.CreateScope())
+            {
+                AppDBContent content = scope.ServiceProvider.GetRequiredService<AppDBContent>();
+                DBObjects.Initial(content);
+            }
 
 
             /*
